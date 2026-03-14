@@ -1,5 +1,0 @@
-watchdog
-networkx
-matplotlib
-pyvis
-groq
