@@ -1,0 +1,9 @@
+.env
+brain.json
+brain_map.html
+__pycache__/
+*.pyc
+flask/
+.idea/
+codebase_brain.egg-info/
+lib/
