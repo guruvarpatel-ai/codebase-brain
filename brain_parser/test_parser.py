@@ -10,4 +10,7 @@ print(detect_language("Dockerfile"))
 result = parse_file("../brain_cli.py")
 print(result['language'])
 print(result['filepath'])
-print(result['functions'])  # add this line
+print(result['functions'])
+print(result['classes'])
+print(result["imports"])
+

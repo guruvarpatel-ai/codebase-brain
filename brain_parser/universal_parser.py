@@ -71,6 +71,39 @@ def extract_functions(tree, code_bytes):
     walk(tree.root_node)
     return functions
 
+def extract_classes(tree, code_bytes):
+    # loop tree → find class_definition nodes → extract name and line number
+    classes = []
+
+    def walk(node):
+        if node.type == 'class_definition':
+            name_node = node.child_by_field_name('name')
+            if name_node:
+                classes.append({
+                    'name': code_bytes[name_node.start_byte:name_node.end_byte].decode('utf-8'),
+                    'line': node.start_point[0] + 1
+                })
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    return classes
+
+def extract_imports(tree, code_bytes):
+    # loop tree → find import nodes → extract module name and line number
+    imports = []
+
+    def walk(node):
+        if node.type in ('import_statement', 'import_from_statement'):
+            imports.append({
+                'name': code_bytes[node.start_byte:node.end_byte].decode('utf-8').strip(),
+                'line': node.start_point[0] + 1
+            })
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    return imports
 
 def parse_file(filepath):
     filepath = os.path.abspath(filepath).replace("\\", "/")
@@ -99,6 +132,8 @@ def parse_file(filepath):
         parser = Parser(LANGUAGE_MAP[language])
         tree = parser.parse(code_bytes)
         functions = extract_functions(tree, code_bytes)
+        classes = extract_classes(tree, code_bytes)
+        imports=extract_imports(tree, code_bytes)
 
     # TODO: extract classes
     # TODO: extract imports
@@ -107,8 +142,8 @@ def parse_file(filepath):
     return {
         'filepath': filepath,
         'language': language,
-        'imports': [],
+        'imports': imports,
         'functions': functions,
-        'classes': [],
+        'classes': classes,
         'content': content
     }
