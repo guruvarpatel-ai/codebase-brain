@@ -14,3 +14,8 @@ print(result['functions'])
 print(result['classes'])
 print(result["imports"])
 
+result3 = parse_file("../test_js.js")
+print(result3['language'])
+print(result3['functions'])
+print(result3["classes"])
+print(result3["imports"])

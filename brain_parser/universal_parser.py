@@ -12,7 +12,18 @@ LANGUAGE_MAP = {
     'python': PY_LANGUAGE,
     'javascript': JS_LANGUAGE,
 }
-
+FUNCTION_NODES = {
+    'python': ['function_definition'],
+    'javascript': ['function_declaration', 'arrow_function', 'function_expression'],
+}
+CLASS_NODES = {
+    'python': ['class_definition'],
+    'javascript': ['class_declaration'],
+}
+IMPORT_NODES = {
+    'python': ['import_statement', 'import_from_statement'],
+    'javascript': ['import_statement'],
+}
 
 def detect_language(filepath):
     filepath = os.path.abspath(filepath).replace("\\", "/")
@@ -53,30 +64,36 @@ def detect_language(filepath):
     return language
 
 
-def extract_functions(tree, code_bytes):
-    # loop tree → find function_definition nodes → extract name and line number
+def extract_functions(tree, code_bytes, node_types):
     functions = []
 
     def walk(node):
-        if node.type == 'function_definition':
+        if node.type in node_types:
             name_node = node.child_by_field_name('name')
             if name_node:
                 functions.append({
                     'name': code_bytes[name_node.start_byte:name_node.end_byte].decode('utf-8'),
                     'line': node.start_point[0] + 1
                 })
+            elif node.parent and node.parent.type == 'variable_declarator':
+                name_node = node.parent.child_by_field_name('name')
+                if name_node:
+                    functions.append({
+                        'name': code_bytes[name_node.start_byte:name_node.end_byte].decode('utf-8'),
+                        'line': node.start_point[0] + 1
+                    })
         for child in node.children:
             walk(child)
 
     walk(tree.root_node)
     return functions
 
-def extract_classes(tree, code_bytes):
+def extract_classes(tree, code_bytes,node_types):
     # loop tree → find class_definition nodes → extract name and line number
     classes = []
 
     def walk(node):
-        if node.type == 'class_definition':
+        if node.type in node_types:
             name_node = node.child_by_field_name('name')
             if name_node:
                 classes.append({
@@ -89,7 +106,7 @@ def extract_classes(tree, code_bytes):
     walk(tree.root_node)
     return classes
 
-def extract_imports(tree, code_bytes):
+def extract_imports(tree, code_bytes,node_types):
     # loop tree → find import nodes → extract module name and line number
     imports = []
 
@@ -131,9 +148,9 @@ def parse_file(filepath):
     if language in LANGUAGE_MAP:
         parser = Parser(LANGUAGE_MAP[language])
         tree = parser.parse(code_bytes)
-        functions = extract_functions(tree, code_bytes)
-        classes = extract_classes(tree, code_bytes)
-        imports=extract_imports(tree, code_bytes)
+        functions = extract_functions(tree, code_bytes, FUNCTION_NODES.get(language, []))
+        classes = extract_classes(tree, code_bytes,CLASS_NODES.get(language,[]))
+        imports = extract_imports(tree, code_bytes, IMPORT_NODES.get(language, []))
 
     # TODO: extract classes
     # TODO: extract imports
