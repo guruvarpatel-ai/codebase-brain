@@ -1,17 +1,30 @@
 import os
 import json
-from brain_parser.ast_parser import analyze_file
+from brain_parser.universal_parser import parse_file
+SKIP_FOLDERS = {
+    'flask', 'lib', '.idea', '__pycache__',
+    'codebase_brain.egg-info', 'node_modules',
+    '.git', 'venv', '.env', 'tests'
+}
+
+SKIP_FILES = {
+    'brain.json', 'brain_map.html'
+}
 
 def walk_codebase(root_path):
     brain = {}
 
     for folder, subfolders, files in os.walk(root_path):
+        # skip ignored folders
+        subfolders[:] = [s for s in subfolders if s not in SKIP_FOLDERS]
+
         for file in files:
-            if file.endswith(".py"):
-                full_path = os.path.join(folder, file)
-                result = analyze_file(full_path)
-                if result is not None:
-                    brain[full_path] = result
+            if file in SKIP_FILES:
+                continue
+            full_path = os.path.join(folder, file)
+            result = parse_file(full_path)
+            if result is not None and result['language'] != 'unknown':
+                brain[full_path] = result
 
     return brain
 def save_brain(brain, output_path="brain.json"):

@@ -150,6 +150,8 @@ def parse_file(filepath):
 
     code_bytes = content.encode('utf-8')
     functions = []
+    classes = []
+    imports = []
 
     # if language supported by tree-sitter → parse and extract functions
     if language in LANGUAGE_MAP:

@@ -7,8 +7,8 @@ flask/
 .idea/
 codebase_brain.egg-info/
 lib/
-brain_parser/test_parser.py
-test.java
-test_classes.py
-test_js.js
-test_treesitter.py
+tests/test_parser.py
+tests/test.java
+tests/test_classes.py
+tests/test_js.js
+tests/test_treesitter.py
