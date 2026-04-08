@@ -7,8 +7,11 @@ flask/
 .idea/
 codebase_brain.egg-info/
 lib/
-
+brain_parser/test_parser.py
 test.java
 test_classes.py
 test_js.js
 test_treesitter.py
+git add .gitignore
+git commit -m "cleanup: update gitignore to exclude test files and library folders"
+git push origin main
