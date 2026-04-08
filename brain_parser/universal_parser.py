@@ -1,28 +1,35 @@
 import os
 import tree_sitter_python as tspython
 import tree_sitter_javascript as tsjavascript
+import tree_sitter_java as tsjava
 from tree_sitter import Language, Parser
+
 
 UNKNOWN_FILES = []
 
 PY_LANGUAGE = Language(tspython.language())
 JS_LANGUAGE = Language(tsjavascript.language())
+JAVA_LANGUAGE=Language(tsjava.language())
 
 LANGUAGE_MAP = {
     'python': PY_LANGUAGE,
     'javascript': JS_LANGUAGE,
+    'java': JAVA_LANGUAGE
 }
 FUNCTION_NODES = {
     'python': ['function_definition'],
     'javascript': ['function_declaration', 'arrow_function', 'function_expression'],
+    'java': ['method_declaration'],
 }
 CLASS_NODES = {
     'python': ['class_definition'],
     'javascript': ['class_declaration'],
+    'java': ['class_declaration'],
 }
 IMPORT_NODES = {
     'python': ['import_statement', 'import_from_statement'],
     'javascript': ['import_statement'],
+    'java': ['import_declaration'],
 }
 
 def detect_language(filepath):
@@ -111,7 +118,7 @@ def extract_imports(tree, code_bytes,node_types):
     imports = []
 
     def walk(node):
-        if node.type in ('import_statement', 'import_from_statement'):
+        if node.type in node_types:
             imports.append({
                 'name': code_bytes[node.start_byte:node.end_byte].decode('utf-8').strip(),
                 'line': node.start_point[0] + 1
