@@ -2,6 +2,8 @@ import os
 import tree_sitter_python as tspython
 import tree_sitter_javascript as tsjavascript
 import tree_sitter_java as tsjava
+import tree_sitter_typescript as tstypescript
+import hashlib
 from tree_sitter import Language, Parser
 
 
@@ -10,26 +12,33 @@ UNKNOWN_FILES = []
 PY_LANGUAGE = Language(tspython.language())
 JS_LANGUAGE = Language(tsjavascript.language())
 JAVA_LANGUAGE=Language(tsjava.language())
+TS_LANGUAGE = Language(tstypescript.language_typescript())
 
 LANGUAGE_MAP = {
     'python': PY_LANGUAGE,
     'javascript': JS_LANGUAGE,
-    'java': JAVA_LANGUAGE
+    'java': JAVA_LANGUAGE,
+    'typescript':TS_LANGUAGE
 }
 FUNCTION_NODES = {
     'python': ['function_definition'],
     'javascript': ['function_declaration', 'arrow_function', 'function_expression'],
     'java': ['method_declaration'],
+'typescript': ['function_declaration', 'arrow_function', 'function_expression'],
 }
 CLASS_NODES = {
     'python': ['class_definition'],
     'javascript': ['class_declaration'],
     'java': ['class_declaration'],
+    'typescript': ['class_declaration'],
+
 }
 IMPORT_NODES = {
     'python': ['import_statement', 'import_from_statement'],
     'javascript': ['import_statement'],
     'java': ['import_declaration'],
+    'typescript': ['import_statement'],
+
 }
 
 def detect_language(filepath):
@@ -69,6 +78,11 @@ def detect_language(filepath):
         UNKNOWN_FILES.append(filepath)
 
     return language
+
+
+def get_file_hash(content):
+    # generate md5 hash of file content
+    return hashlib.md5(content.encode('utf-8')).hexdigest()
 
 
 def extract_functions(tree, code_bytes, node_types):
@@ -129,6 +143,32 @@ def extract_imports(tree, code_bytes,node_types):
     walk(tree.root_node)
     return imports
 
+
+def summarize_file(filepath, content, language):
+    # call Groq → get 3 line summary → store instead of raw content
+    try:
+        from groq import Groq
+        from dotenv import load_dotenv
+        load_dotenv()
+
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+        prompt = f"""Summarize this {language} file in exactly 3 sentences.
+Focus on: what it does, what functions matter, what it connects to.
+File: {filepath}
+Code:
+{content[:3000]}"""
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Could not summarize: {str(e)}"
+
+
 def parse_file(filepath):
     filepath = os.path.abspath(filepath).replace("\\", "/")
     language = detect_language(filepath)
@@ -161,9 +201,6 @@ def parse_file(filepath):
         classes = extract_classes(tree, code_bytes,CLASS_NODES.get(language,[]))
         imports = extract_imports(tree, code_bytes, IMPORT_NODES.get(language, []))
 
-    # TODO: extract classes
-    # TODO: extract imports
-    # TODO: summarize content using Groq → replace raw content with summary
 
     return {
         'filepath': filepath,
@@ -171,5 +208,6 @@ def parse_file(filepath):
         'imports': imports,
         'functions': functions,
         'classes': classes,
-        'content': content
+        'summary': summarize_file(filepath, content, language),
+        'hash': get_file_hash(content)
     }

@@ -1,7 +1,7 @@
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from brain_parser.ast_parser import analyze_file
+from brain_parser.universal_parser import parse_file
 from brain_parser.codebase_walker import walk_codebase, save_brain, load_brain
 
 class BrainEventHandler(FileSystemEventHandler):
@@ -9,23 +9,23 @@ class BrainEventHandler(FileSystemEventHandler):
         self.brain = load_brain() or {}
 
     def on_modified(self, event):
-        if event.src_path.endswith(".py"):
+        if not event.is_directory:
             print(f"Modified: {event.src_path}")
-            result = analyze_file(event.src_path)
-            if result:
+            result = parse_file(event.src_path)
+            if result and result['language'] != 'unknown':
                 self.brain[event.src_path] = result
                 save_brain(self.brain)
 
     def on_created(self, event):
-        if event.src_path.endswith(".py"):
+        if not event.is_directory:
             print(f"New file: {event.src_path}")
-            result = analyze_file(event.src_path)
-            if result:
+            result = parse_file(event.src_path)
+            if result and result['language'] != 'unknown':
                 self.brain[event.src_path] = result
                 save_brain(self.brain)
 
     def on_deleted(self, event):
-        if event.src_path.endswith(".py"):
+        if not event.is_directory:
             print(f"Deleted: {event.src_path}")
             if event.src_path in self.brain:
                 del self.brain[event.src_path]
@@ -36,7 +36,6 @@ def start_watching(path="."):
     brain = load_brain() or {}
     if not brain:
         print("No brain found. Building first...")
-        from codebase_walker import walk_codebase
         brain = walk_codebase(path)
         save_brain(brain)
 

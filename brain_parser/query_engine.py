@@ -26,14 +26,18 @@ def find_relevant_context(brain, question):
     question_lower = question.lower()
 
     for filepath, data in brain.items():
+        # check filename
+        if any(word in filepath.lower() for word in question_lower.split()):
+            relevant[filepath] = data
+            continue
         # Check functions
-        for func in data['classes_and_functions']['functions']:
+        for func in data.get('functions', []):
             if func['name'].lower() in question_lower:
                 relevant[filepath] = data
                 break
 
         # Check imports
-        for imp in data['imports']:
+        for imp in data.get('imports', []):
             name = imp.get('name') or imp.get('module', '')
             if name.lower() in question_lower:
                 relevant[filepath] = data
