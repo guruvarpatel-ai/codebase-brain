@@ -22,32 +22,52 @@ def get_client():
 
 
 def find_relevant_context(brain, question):
-    relevant = {}
+    scores = {}
     question_lower = question.lower()
+    question_words = set(question_lower.split())
 
     for filepath, data in brain.items():
-        # check filename
-        if any(word in filepath.lower() for word in question_lower.split()):
-            relevant[filepath] = data
-            continue
-        # Check functions
+        score = 0
+
+        # filename match → high value
+        filename = filepath.lower()
+        for word in question_words:
+            if word in filename:
+                score += 3
+
+        # function name match → high value
         for func in data.get('functions', []):
             if func['name'].lower() in question_lower:
-                relevant[filepath] = data
-                break
+                score += 3
 
-        # Check imports
+        # class name match → high value
+        for cls in data.get('classes', []):
+            if cls['name'].lower() in question_lower:
+                score += 3
+
+        # import match → medium value
         for imp in data.get('imports', []):
-            name = imp.get('name') or imp.get('module', '')
-            if name.lower() in question_lower:
-                relevant[filepath] = data
-                break
+            name = imp.get('name', '').lower()
+            if any(word in name for word in question_words):
+                score += 2
 
-    # If nothing specific found, return all
-    if not relevant:
-        relevant = brain
+        # summary match → medium value
+        summary = data.get('summary', '').lower()
+        for word in question_words:
+            if word in summary:
+                score += 1
 
-    return relevant
+        scores[filepath] = score
+
+    # sort by score → take top 5
+    sorted_files = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_5 = dict([(f, brain[f]) for f, s in sorted_files[:5] if s > 0])
+
+    # if nothing scored → fall back to top 5 by score anyway
+    if not top_5:
+        top_5 = dict([(f, brain[f]) for f, s in sorted_files[:5]])
+
+    return top_5
 
 
 def ask_brain(question):
