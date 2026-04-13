@@ -9,12 +9,16 @@ class BrainEventHandler(FileSystemEventHandler):
         self.brain = load_brain() or {}
 
     def on_modified(self, event):
-        if not event.is_directory:
-            print(f"Modified: {event.src_path}")
-            result = parse_file(event.src_path)
-            if result and result['language'] != 'unknown':
-                self.brain[event.src_path] = result
-                save_brain(self.brain)
+        if event.is_directory:
+            return
+        # skip brain output files
+        if event.src_path.endswith('brain.json') or event.src_path.endswith('brain_map.html'):
+            return
+        print(f"Modified: {event.src_path}")
+        result = parse_file(event.src_path)
+        if result and result['language'] != 'unknown':
+            self.brain[event.src_path] = result
+            save_brain(self.brain)
 
     def on_created(self, event):
         if not event.is_directory:

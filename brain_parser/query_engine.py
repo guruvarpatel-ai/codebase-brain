@@ -4,6 +4,7 @@ from groq import Groq
 from brain_parser.codebase_walker import load_brain
 from dotenv import load_dotenv
 
+
 def get_client():
     load_dotenv()
     api_key = os.getenv("GROQ_API_KEY")

@@ -3,18 +3,35 @@ import matplotlib.pyplot as plt
 from brain_parser.codebase_walker import load_brain
 from pyvis.network import Network
 
+
 def build_graph(brain):
     G = nx.DiGraph()
 
     for filepath, data in brain.items():
-        # Add node for each file
         G.add_node(filepath)
 
-        # Add edges from imports
-        for imp in data['imports']:
-            module = imp.get('name') or imp.get('module', '')
+        for imp in data.get('imports', []):
+            raw = imp.get('name', '')
+
+            # extract module from "from x import y" or "import x"
+            if raw.startswith('from '):
+                module = raw.split('from ')[1].split(' import')[0].strip()
+            elif raw.startswith('import '):
+                module = raw.replace('import ', '').split(' as ')[0].strip()
+            else:
+                continue
+
+            # convert module path to file path format
+            # tests.circular_test.file_b → tests/circular_test/file_b
+            module_as_path = module.replace('.', '/').lower()
+
             for other_file in brain.keys():
-                if module in other_file:
+                other_normalized = other_file.replace('\\', '/').lower()
+                # match whole filename not partial
+                filename = other_normalized.split('/')[-1].replace('.py', '').replace('.js', '').replace('.java',
+                                                                                                         '').replace(
+                    '.ts', '')
+                if module_as_path == filename or other_normalized.endswith(module_as_path + '.py'):
                     G.add_edge(filepath, other_file)
 
     return G
