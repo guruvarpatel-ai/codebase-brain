@@ -1,6 +1,8 @@
 import networkx as nx
+import os
 from brain_parser.codebase_walker import load_brain
 from brain_parser.graph_builder import build_graph
+
 
 
 def detect_circular_dependencies(brain):
@@ -75,8 +77,67 @@ def detect_unused_imports(brain):
 
     return bugs
 
+def detect_bugs_with_llm(brain, G):
+    # calculate risk → filter HIGH risk files → send to Groq → find bugs
+    from brain_parser.graph_builder import calculate_risk
+    from groq import Groq
+    from dotenv import load_dotenv
+    load_dotenv()
 
-def run_all_detectors(brain=None):
+    risk = calculate_risk(G)
+    high_risk_files = [f for f, r in risk.items() if r == "HIGH"]
+
+    if not high_risk_files:
+        return []
+
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    bugs = []
+
+    for filepath in high_risk_files:
+        data = brain.get(filepath)
+        if not data:
+            continue
+
+        summary = data.get('summary', '')
+        functions = [f['name'] for f in data.get('functions', [])]
+        imports = [i['name'] for i in data.get('imports', [])]
+
+        prompt = f"""You are a senior code reviewer analyzing a high-risk file.
+File: {filepath}
+Summary: {summary}
+Functions: {functions}
+Imports: {imports}
+
+List only REAL bugs or security issues you can identify with HIGH confidence.
+For each bug respond in exactly this format:
+BUG: description
+FIX: how to fix it
+If no bugs found respond with: NO BUGS"""
+
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=300,
+                temperature = 0
+            )
+            result = response.choices[0].message.content.strip()
+
+            if "NO BUGS" not in result:
+                bugs.append({
+                    'type': 'llm_detected_bug',
+                    'severity': 'HIGH',
+                    'file': filepath,
+                    'message': result,
+                    'fix': 'See details above'
+                })
+        except Exception as e:
+            print(f"LLM bug detection error for {filepath}: {e}")
+
+    return bugs
+
+
+def run_all_detectors(brain=None, G=None):
     if not brain:
         brain = load_brain()
     if not brain:
@@ -84,11 +145,11 @@ def run_all_detectors(brain=None):
 
     bugs = []
     bugs.extend(detect_circular_dependencies(brain))
-    # TODO: unused imports needs function body reading - Week 4
-    # bugs.extend(detect_unused_imports(brain))
+
+    if G:
+        bugs.extend(detect_bugs_with_llm(brain, G))
 
     return bugs
-
 
 if __name__ == "__main__":
     bugs = run_all_detectors()

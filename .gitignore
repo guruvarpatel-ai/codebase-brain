@@ -12,3 +12,4 @@ tests/test.java
 tests/test_classes.py
 tests/test_js.js
 tests/test_treesitter.py
+tests

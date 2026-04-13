@@ -25,15 +25,15 @@ def cmd_start(path):
     # Step 2.5: Run bug detection automatically
     print("\n Scanning for bugs...")
     from brain_parser.bug_detector import run_all_detectors
-    bugs = run_all_detectors(brain)
+    bugs = run_all_detectors(brain, G)
     if bugs:
-        print(f"\n⚠️  Found {len(bugs)} potential bugs:\n")
+        print(f"\n Found {len(bugs)} potential bugs:\n")
         for bug in bugs:
             print(f"  [{bug['severity']}] {bug['type'].replace('_', ' ').upper()}")
             print(f"  {bug['message']}")
             print(f"  Fix: {bug['fix']}\n")
     else:
-        print("✅ No bugs detected. Codebase looks clean.\n")
+        print(" No bugs detected. Codebase looks clean.\n")
 
     # Step 3: Start file watcher in background
     print("Starting live file watcher...")
