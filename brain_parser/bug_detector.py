@@ -102,17 +102,22 @@ def detect_bugs_with_llm(brain, G):
         functions = [f['name'] for f in data.get('functions', [])]
         imports = [i['name'] for i in data.get('imports', [])]
 
-        prompt = f"""You are a senior code reviewer analyzing a high-risk file.
-File: {filepath}
-Summary: {summary}
-Functions: {functions}
-Imports: {imports}
+        prompt = f"""You are a senior code reviewer. Analyze this file for bugs.
 
-List only REAL bugs or security issues you can identify with HIGH confidence.
-For each bug respond in exactly this format:
-BUG: description
-FIX: how to fix it
-If no bugs found respond with: NO BUGS"""
+        File: {filepath}
+        Summary: {summary}
+        Functions: {functions}
+        Imports: {imports}
+
+        Rules:
+        - Only report bugs you can prove from the information given
+        - Every bug must reference a specific function name from the functions list
+        - Do not invent bugs that are not evident from the summary
+        - If no provable bugs exist respond with exactly: NO BUGS
+
+        Format each bug exactly like this:
+        BUG: [function_name] description of specific problem
+        FIX: specific code change needed"""
 
         try:
             response = client.chat.completions.create(
@@ -145,9 +150,8 @@ def run_all_detectors(brain=None, G=None):
 
     bugs = []
     bugs.extend(detect_circular_dependencies(brain))
-
-    if G:
-        bugs.extend(detect_bugs_with_llm(brain, G))
+    # TODO: Week 4 - LLM bug detection needs function bodies for accuracy
+    # bugs.extend(detect_bugs_with_llm(brain, G))
 
     return bugs
 

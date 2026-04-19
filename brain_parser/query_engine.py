@@ -84,13 +84,18 @@ def ask_brain(question):
     context_str = json.dumps(context, indent=2)
 
     prompt = f"""You are an intelligent codebase brain.
-You have deep knowledge of this codebase structure.
-Here is what you know:
+    You have deep knowledge of this codebase structure.
+    Here is what you know:
 
-{context_str}
+    {context_str}
 
-Answer this question precisely and clearly:
-{question}"""
+    Answer this question precisely and clearly:
+    {question}"""
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}]
+    )
 
     response = client.chat.completions.create(
         model=model,
