@@ -1,4 +1,6 @@
 from brain_parser.universal_parser import detect_language, parse_file
+import pickle
+import subprocess
 
 # Test 1: language detection
 print(detect_language("app.py"))

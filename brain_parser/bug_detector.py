@@ -142,6 +142,43 @@ def detect_bugs_with_llm(brain, G):
     return bugs
 
 
+DANGEROUS_IMPORTS = {
+    'pickle': 'Deserialization vulnerability - pickle can execute arbitrary code',
+    'subprocess': 'Potential command injection if user input is passed to subprocess',
+    'eval': 'Code injection risk - eval executes arbitrary Python code',
+    'exec': 'Code injection risk - exec executes arbitrary Python code',
+    'hashlib.md5': 'Weak hashing - MD5 is cryptographically broken for security use',
+    'tempfile': 'Insecure temporary file handling possible',
+    'yaml.load': 'Use yaml.safe_load instead - yaml.load can execute arbitrary code',
+}
+
+
+def detect_security_antipatterns(brain):
+    # check imports against known dangerous patterns
+    bugs = []
+
+    for filepath, data in brain.items():
+        if data.get('language') != 'python':
+            continue
+
+        for imp in data.get('imports', []):
+            imp_name = imp.get('name', '').lower()
+
+            for dangerous, reason in DANGEROUS_IMPORTS.items():
+                if dangerous in imp_name:
+                    bugs.append({
+                        'type': 'security_antipattern',
+                        'severity': 'HIGH',
+                        'file': filepath,
+                        'import': imp.get('name', ''),
+                        'line': imp.get('line', 0),
+                        'message': f"Security risk in {filepath} line {imp.get('line', 0)}: {reason}",
+                        'fix': f"Review usage of '{dangerous}' and ensure it never processes untrusted input."
+                    })
+
+    return bugs
+
+
 def run_all_detectors(brain=None, G=None):
     if not brain:
         brain = load_brain()
@@ -152,6 +189,7 @@ def run_all_detectors(brain=None, G=None):
     bugs.extend(detect_circular_dependencies(brain))
     # TODO: Week 4 - LLM bug detection needs function bodies for accuracy
     # bugs.extend(detect_bugs_with_llm(brain, G))
+    bugs.extend(detect_security_antipatterns(brain))
 
     return bugs
 

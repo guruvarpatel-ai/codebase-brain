@@ -8,10 +8,24 @@ class BrainEventHandler(FileSystemEventHandler):
     def __init__(self):
         self.brain = load_brain() or {}
 
+    SKIP_WATCH = {'.git', '.idea', '__pycache__', 'node_modules', 'lib'}
+
+    def should_skip(path):
+        # skip git, ide, temp files
+        if path.endswith('~'):
+            return True
+        for skip in SKIP_WATCH:
+            if skip in path.replace('\\', '/'):
+                return True
+        return False
+
     def on_modified(self, event):
         if event.is_directory:
             return
+        if should_skip(event.src_path):
+            return
         # skip brain output files
+
         if event.src_path.endswith('brain.json') or event.src_path.endswith('brain_map.html'):
             return
         print(f"Modified: {event.src_path}")
@@ -21,6 +35,8 @@ class BrainEventHandler(FileSystemEventHandler):
             save_brain(self.brain)
 
     def on_created(self, event):
+        if should_skip(event.src_path):
+            return
         if not event.is_directory:
             print(f"New file: {event.src_path}")
             result = parse_file(event.src_path)
@@ -29,6 +45,8 @@ class BrainEventHandler(FileSystemEventHandler):
                 save_brain(self.brain)
 
     def on_deleted(self, event):
+        if should_skip(event.src_path):
+            return
         if not event.is_directory:
             print(f"Deleted: {event.src_path}")
             if event.src_path in self.brain:
