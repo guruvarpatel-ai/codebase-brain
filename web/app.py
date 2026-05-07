@@ -70,6 +70,20 @@ def analyze():
         save_brain(brain, brain_json_path)
         G = build_graph(brain)
         bugs = run_all_detectors(brain, G)
+        # clean bug file paths
+        for bug in bugs:
+            if 'file' in bug:
+                clean = clean_path(bug['file'], temp_path)
+                bug['file'] = clean
+                if 'message' in bug:
+                    # rebuild message with clean path
+                    bug['message'] = bug['message'].split(': ', 1)
+                    if len(bug['message']) > 1:
+                        bug['message'] = f"Security risk in {clean}: {bug['message'][1]}"
+                    else:
+                        bug['message'] = bug['message'][0]
+            if 'files' in bug:
+                bug['files'] = [clean_path(f, temp_path) for f in bug['files']]
         risk = calculate_risk(G)
 
         files = []
