@@ -286,6 +286,12 @@
         .answer-box { display: none; background: rgba(2,8,20,0.8); border: 1px solid rgba(255,255,255,0.04); border-radius: 8px; padding: 14px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: #c9d1d9; }
         .answer-box.visible { display: block; }
         .clean-msg { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #3fb950; margin-bottom: 20px; padding: 8px 14px; background: rgba(63,185,80,0.06); border: 1px solid rgba(63,185,80,0.18); border-radius: 8px; }
+        .impact-section { background: rgba(8,16,32,0.85); border: 1px solid rgba(240,136,62,0.15); border-radius: 14px; padding: 24px; margin-bottom: 24px; }
+        .impact-result { margin-top: 16px; }
+        .impact-card { background: rgba(2,8,20,0.8); border-radius: 8px; padding: 14px; font-size: 13px; line-height: 1.8; }
+        .impact-high { color: #f85149; }
+        .impact-medium { color: #f0883e; }
+        .impact-low { color: #3fb950; }
     </style>
 </head>
 <body>
@@ -335,6 +341,14 @@
         <div class="bugs-list" id="bugs-section"></div>
         <div class="section-title">Files</div>
         <div class="files-grid" id="files-list"></div>
+        <div class="impact-section">
+    <div class="section-title">Change Impact Analysis</div>
+    <div class="ask-row">
+        <input type="text" id="impact-file" placeholder="Type filename e.g. universal_parser.py" />
+        <button class="btn-ask" onclick="checkImpact()">Check Impact</button>
+    </div>
+    <div class="impact-result" id="impact-result"></div>
+</div>
         <div class="ask-section">
             <div class="section-title">Ask your Brain</div>
             <div class="ask-row">
@@ -485,6 +499,33 @@ async function askQuestion() {
         const d = await r.json();
         ans.textContent = d.answer;
     } catch(e) { ans.textContent = 'Error: '+e.message; }
+}
+    async function checkImpact() {
+    const filename = document.getElementById('impact-file').value.trim();
+    if (!filename) return;
+    const result = document.getElementById('impact-result');
+    result.innerHTML = '<div style="color:#8b949e">Analyzing impact...</div>';
+    try {
+        const r = await fetch('/impact', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filename})
+        });
+        const d = await r.json();
+        if (d.error) { result.innerHTML = `<div style="color:#f85149">${d.error}</div>`; return; }
+        result.innerHTML = `
+            <div class="impact-card">
+                <div style="margin-bottom:12px"><span style="color:#f0883e;font-weight:700">TARGET:</span> ${d.target} — <span class="impact-${d.risk.toLowerCase()}">${d.risk} RISK</span></div>
+                <div style="margin-bottom:8px"><span style="color:#f85149;font-weight:700">DIRECT IMPACT (${d.direct.length} files):</span></div>
+                ${d.direct.map(f => `<div class="impact-high">→ ${f}</div>`).join('')}
+                ${d.indirect.length > 0 ? `
+                <div style="margin:8px 0"><span style="color:#f0883e;font-weight:700">INDIRECT IMPACT (${d.indirect.length} files):</span></div>
+                ${d.indirect.map(f => `<div class="impact-medium">→ ${f}</div>`).join('')}` : ''}
+                <div style="margin-top:12px;color:#484f58">Total files affected: ${d.total_affected}</div>
+            </div>`;
+    } catch(e) {
+        result.innerHTML = `<div style="color:#f85149">Error: ${e.message}</div>`;
+    }
 }
 </script>
 

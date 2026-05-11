@@ -57,19 +57,54 @@ def cmd_start(path):
         answer = ask_brain(question)
         print(f"\nBrain: {answer}\n")
 
+def cmd_impact(filepath):
+    from brain_parser.codebase_walker import load_brain
+    from brain_parser.graph_builder import build_graph, get_impact, calculate_risk
+    import os
+
+    brain = load_brain()
+    if not brain:
+        print("No brain found. Run 'brain start' first.")
+        return
+
+    G = build_graph(brain)
+    risk = calculate_risk(G)
+    result = get_impact(G, filepath)
+
+    if not result:
+        print(f"File not found: {filepath}")
+        return
+
+    # clean paths
+    root = os.path.abspath('.').replace('\\', '/')
+    def clean(path):
+        return path.replace('\\', '/').replace(root + '/', '')
+
+    print(f"\n Change Impact Analysis: {filepath}")
+    print(f"   Risk Level: {risk.get(result['target'], 'LOW')}\n")
+    print(f"DIRECT IMPACT ({len(result['direct'])} files):")
+    for f in result['direct']:
+        print(f"  → {clean(f)}")
+    print(f"\nINDIRECT IMPACT ({len(result['indirect'])} files):")
+    for f in result['indirect']:
+        print(f"  → {clean(f)}")
+    print(f"\nTotal files affected: {result['total_affected']}")
 
 def main():
     parser = argparse.ArgumentParser(
         description="Codebase Brain - AI layer over your codebase"
     )
-    parser.add_argument("command", choices=["start", "init"])
+    parser.add_argument("command", choices=["start", "init", "impact"])
     parser.add_argument("--path", default=".", help="Path to codebase")
+    parser.add_argument("--file", default="", help="File to analyze impact")
     args = parser.parse_args()
 
     if args.command == "init":
         cmd_init()
     elif args.command == "start":
         cmd_start(args.path)
+    elif args.command == "impact":
+        cmd_impact(args.file)
 
 def cmd_init():
     print("Initializing Codebase Brain...\n")

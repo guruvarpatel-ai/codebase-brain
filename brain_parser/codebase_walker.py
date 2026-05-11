@@ -5,7 +5,7 @@ from brain_parser.universal_parser import parse_file
 SKIP_FOLDERS = {
     'flask', 'lib', '.idea', '__pycache__',
     'codebase_brain.egg-info', 'node_modules',
-    '.git', 'venv', '.env', 'tests'
+    '.git', 'venv', '.env', 'tests', 'temp'
 }
 SKIP_FILES = {
     'brain.json', 'brain_map.html'
@@ -60,6 +60,32 @@ def load_brain(input_path=BRAIN_PATH):
         return None
     with open(input_path, "r") as f:
         return json.load(f)
+
+
+def summarize_high_risk_files(brain, risk):
+    from brain_parser.universal_parser import summarize_file
+
+    summarized = 0
+    for filepath, data in brain.items():
+        file_risk = risk.get(filepath, 'LOW')
+        content = data.get('content', '')
+
+        if file_risk == 'HIGH' and content:
+            print(f"Summarizing HIGH risk file: {filepath}")
+            data['summary'] = summarize_file(filepath, content, data.get('language', ''))
+            data.pop('content', None)
+            summarized += 1
+        else:
+            # low/medium risk - generate simple summary from structure
+            functions = [f['name'] for f in data.get('functions', [])]
+            classes = [c['name'] for c in data.get('classes', [])]
+            imports = [i['name'] for i in data.get('imports', [])]
+            data[
+                'summary'] = f"File with {len(functions)} functions: {', '.join(functions[:5])}. Classes: {', '.join(classes[:3])}. Imports: {', '.join(imports[:5])}"
+            data.pop('content', None)
+
+    print(f"Summarized {summarized} HIGH risk files with Groq. Rest used structure only.")
+    return brain
 
 if __name__ == "__main__":
     brain = walk_codebase(".")

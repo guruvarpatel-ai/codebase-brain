@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from brain_parser.codebase_walker import walk_codebase, save_brain
 from brain_parser.graph_builder import build_graph, calculate_risk
 from brain_parser.bug_detector import run_all_detectors
+from brain_parser.codebase_walker import walk_codebase, save_brain, summarize_high_risk_files
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -67,9 +68,11 @@ def analyze():
     try:
         brain = walk_codebase(temp_path)
         brain_json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'brain.json')
-        save_brain(brain, brain_json_path)
         G = build_graph(brain)
+        risk = calculate_risk(G)  # ← move this up
+        brain = summarize_high_risk_files(brain, risk)
         bugs = run_all_detectors(brain, G)
+        save_brain(brain, brain_json_path)
         # clean bug file paths
         for bug in bugs:
             if 'file' in bug:
@@ -105,6 +108,8 @@ def analyze():
         })
     except Exception as e:
         return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
+    finally:
+        force_delete(temp_path)
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -115,6 +120,40 @@ def ask():
     from brain_parser.query_engine import ask_brain
     answer = ask_brain(question)
     return jsonify({'answer': answer})
+
+
+@app.route('/impact', methods=['POST'])
+def impact():
+    data = request.json
+    filename = data.get('filename', '').strip()
+    if not filename:
+        return jsonify({'error': 'No filename provided'}), 400
+
+    from brain_parser.graph_builder import get_impact, calculate_risk
+    from brain_parser.codebase_walker import load_brain
+
+    brain = load_brain()
+    if not brain:
+        return jsonify({'error': 'No brain found. Analyze a repo first.'}), 400
+
+    G = build_graph(brain)
+    risk = calculate_risk(G)
+    result = get_impact(G, filename)
+
+    if not result:
+        return jsonify({'error': f'File not found: {filename}'}), 404
+
+    def clean(path):
+        return path.replace('\\', '/').split('/')[-2] + '/' + path.replace('\\', '/').split('/')[
+            -1] if '/' in path.replace('\\', '/') else path
+
+    return jsonify({
+        'target': clean(result['target']),
+        'direct': [clean(f) for f in result['direct']],
+        'indirect': [clean(f) for f in result['indirect']],
+        'total_affected': result['total_affected'],
+        'risk': risk.get(result['target'], 'LOW')
+    })
 
 if __name__ == '__main__':
     os.makedirs(os.path.join(os.path.dirname(__file__), 'temp'), exist_ok=True)

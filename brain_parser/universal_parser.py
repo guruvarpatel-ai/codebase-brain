@@ -153,11 +153,12 @@ def summarize_file(filepath, content, language):
 
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+        filename = filepath.split('/')[-1]
         prompt = f"""Summarize this {language} file in exactly 3 sentences.
-Focus on: what it does, what functions matter, what it connects to.
-File: {filepath}
-Code:
-{content[:3000]}"""
+        Focus on: what it does, what functions matter, what it connects to.
+        File: {filename}
+        Code:
+        {content[:3000]}"""
 
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -208,6 +209,7 @@ def parse_file(filepath):
         'imports': imports,
         'functions': functions,
         'classes': classes,
-        'summary': summarize_file(filepath, content, language),
+        'summary': '',
+        'content': content        ,
         'hash': get_file_hash(content)
     }

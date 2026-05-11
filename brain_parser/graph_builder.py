@@ -81,7 +81,6 @@ def calculate_risk(G):
 
     return risk
 
-
 def visualize_interactive(G):
     risk = calculate_risk(G)\
 
@@ -149,6 +148,38 @@ def visualize_interactive(G):
     import webbrowser
     webbrowser.open("brain_map.html")
     print("Interactive graph saved to brain_map.html")
+
+
+def get_impact(G, filepath):
+    # find all files affected if filepath changes
+    import networkx as nx
+
+    # normalize path
+    target = filepath.replace('\\', '/')
+
+    # find matching node
+    matched = None
+    for node in G.nodes():
+        if target in node.replace('\\', '/'):
+            matched = node
+            break
+
+    if not matched:
+        return None
+
+    # direct dependencies — files that directly import this file
+    direct = list(G.predecessors(matched))
+
+    # all indirect dependencies
+    all_affected = nx.ancestors(G, matched)
+    indirect = [f for f in all_affected if f not in direct]
+
+    return {
+        'target': matched,
+        'direct': direct,
+        'indirect': indirect,
+        'total_affected': len(direct) + len(indirect)
+    }
 
 
 if __name__ == "__main__":

@@ -4,11 +4,12 @@ from watchdog.events import FileSystemEventHandler
 from brain_parser.universal_parser import parse_file
 from brain_parser.codebase_walker import walk_codebase, save_brain, load_brain
 
+SKIP_WATCH = {'.git', '.idea', '__pycache__', 'node_modules', 'lib'}
+
 class BrainEventHandler(FileSystemEventHandler):
     def __init__(self):
         self.brain = load_brain() or {}
 
-    SKIP_WATCH = {'.git', '.idea', '__pycache__', 'node_modules', 'lib'}
 
     def should_skip(path):
         # skip git, ide, temp files
@@ -22,7 +23,7 @@ class BrainEventHandler(FileSystemEventHandler):
     def on_modified(self, event):
         if event.is_directory:
             return
-        if should_skip(event.src_path):
+        if self.should_skip(event.src_path):
             return
         # skip brain output files
 
@@ -35,7 +36,7 @@ class BrainEventHandler(FileSystemEventHandler):
             save_brain(self.brain)
 
     def on_created(self, event):
-        if should_skip(event.src_path):
+        if self.should_skip(event.src_path):
             return
         if not event.is_directory:
             print(f"New file: {event.src_path}")
@@ -45,7 +46,7 @@ class BrainEventHandler(FileSystemEventHandler):
                 save_brain(self.brain)
 
     def on_deleted(self, event):
-        if should_skip(event.src_path):
+        if self.should_skip(event.src_path):
             return
         if not event.is_directory:
             print(f"Deleted: {event.src_path}")
