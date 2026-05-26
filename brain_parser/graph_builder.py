@@ -151,26 +151,23 @@ def visualize_interactive(G):
 
 
 def get_impact(G, filepath):
-    # find all files affected if filepath changes
     import networkx as nx
+    import os
 
-    # normalize path
-    target = filepath.replace('\\', '/')
+    # Normalize incoming path to forward slashes, absolute
+    target_norm = os.path.abspath(filepath).replace('\\', '/')
 
-    # find matching node
+    # Find matching node by normalizing graph keys the same way
     matched = None
     for node in G.nodes():
-        if target in node.replace('\\', '/'):
+        if node.replace('\\', '/') == target_norm:
             matched = node
             break
 
     if not matched:
         return None
 
-    # direct dependencies — files that directly import this file
     direct = list(G.predecessors(matched))
-
-    # all indirect dependencies
     all_affected = nx.ancestors(G, matched)
     indirect = [f for f in all_affected if f not in direct]
 

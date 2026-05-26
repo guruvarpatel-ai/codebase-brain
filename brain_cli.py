@@ -96,7 +96,7 @@ def cmd_impact(filepath=None, staged=False):
 
 def _print_impact(G, risk, filepath, clean):
     from brain_parser.graph_builder import get_impact
-    filepath = os.path.abspath(filepath).replace('\\', '/')
+
     result = get_impact(G, filepath)
 
     if not result:
