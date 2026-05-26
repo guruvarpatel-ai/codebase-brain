@@ -93,13 +93,9 @@ def cmd_impact(filepath=None, staged=False):
 
     _print_impact(G, risk, filepath, clean)
 
-
 def _print_impact(G, risk, filepath, clean):
     from brain_parser.graph_builder import get_impact
-    import os
-    resolved = os.path.abspath(filepath).replace('\\', '/')
-    print(f"  DEBUG resolved: {resolved}")
-    print(f"  DEBUG sample brain key: {list(G.nodes())[:1]}")
+
     result = get_impact(G, filepath)
 
     if not result:
@@ -115,7 +111,6 @@ def _print_impact(G, risk, filepath, clean):
     for f in result['indirect']:
         print(f"  → {clean(f)}")
     print(f"\nTotal files affected: {result['total_affected']}\n")
-
 
 def install_hook(repo_path="."):
     hook_dir = os.path.join(repo_path, ".git", "hooks")
