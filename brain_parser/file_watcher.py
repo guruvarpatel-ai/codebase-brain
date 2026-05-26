@@ -11,7 +11,7 @@ class BrainEventHandler(FileSystemEventHandler):
         self.brain = load_brain() or {}
 
 
-    def should_skip(path):
+    def should_skip(self,path):
         # skip git, ide, temp files
         if path.endswith('~'):
             return True
