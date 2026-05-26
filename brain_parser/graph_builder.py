@@ -154,13 +154,14 @@ def get_impact(G, filepath):
     import networkx as nx
     import os
 
-    # Normalize incoming path to forward slashes, absolute
+    # Normalize incoming path
     target_norm = os.path.abspath(filepath).replace('\\', '/')
 
-    # Find matching node by normalizing graph keys the same way
+    # Find matching node — handles both absolute and relative keys
     matched = None
     for node in G.nodes():
-        if node.replace('\\', '/') == target_norm:
+        node_norm = os.path.abspath(node).replace('\\', '/')
+        if node_norm == target_norm:
             matched = node
             break
 
@@ -177,7 +178,6 @@ def get_impact(G, filepath):
         'indirect': indirect,
         'total_affected': len(direct) + len(indirect)
     }
-
 
 if __name__ == "__main__":
     brain = load_brain()
