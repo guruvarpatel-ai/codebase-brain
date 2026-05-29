@@ -161,6 +161,21 @@ def cmd_init():
         f.write(f"GROQ_MODEL={model}\n")
     print("\nBrain initialized successfully.")
     print("Run 'brain start' to begin.\n")
+def cmd_rootcause(error_text=None):
+    from brain_parser.root_cause import find_root_cause
+
+    if not error_text:
+        print("Paste your error/stacktrace below.")
+        print("Press Enter twice when done.\n")
+        lines = []
+        while True:
+            line = input()
+            if line == "" and lines and lines[-1] == "":
+                break
+            lines.append(line)
+        error_text = "\n".join(lines)
+
+    print(find_root_cause(error_text))
 
 
 def main():
@@ -168,20 +183,26 @@ def main():
         description="Codebase Brain - AI layer over your codebase"
     )
     # ← "install-hook" added here
-    parser.add_argument("command", choices=["start", "init", "impact", "install-hook"])
     parser.add_argument("--path", default=".", help="Path to codebase")
     parser.add_argument("--file", default="", help="File to analyze impact")
-    parser.add_argument("--staged", action="store_true", help="Analyze all staged files")  # ← new
+    parser.add_argument("--staged", action="store_true", help="Analyze all staged files")
+    parser.add_argument("command", choices=["start", "init", "impact", "install-hook", "rootcause"])
+    parser.add_argument("--error", default="", help="Stacktrace to analyze")
+    # ← new
     args = parser.parse_args()
+
 
     if args.command == "init":
         cmd_init()
+    elif args.command == "rootcause":
+        cmd_rootcause(args.error or None)
     elif args.command == "start":
         cmd_start(args.path)
     elif args.command == "impact":
         cmd_impact(filepath=args.file or None, staged=args.staged)
     elif args.command == "install-hook":
         install_hook()
+
 
 
 if __name__ == "__main__":
