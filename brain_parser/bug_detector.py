@@ -5,28 +5,40 @@ from brain_parser.graph_builder import build_graph
 
 
 
-def detect_circular_dependencies(brain):
-    # build graph from brain → find cycles → report files involved
+def detect_circular_dependencies(brain, temp_path=None):
     G = build_graph(brain)
-
     bugs = []
+
+    def clean(path):
+        p = path.replace('\\', '/')
+        idx = p.find('/temp/')
+        if idx != -1:
+            after_temp = p[idx + 6:]
+            parts = after_temp.split('/', 1)
+            if len(parts) > 1:
+                return parts[1]
+            return parts[0]
+        # fallback — just filename
+        return p.split('/')[-1]
 
     try:
         cycles = list(nx.simple_cycles(G))
         for cycle in cycles:
+            clean_cycle = [clean(f) for f in cycle]
+            # format as numbered list not one long line
+            chain = '\n  '.join([f"{i+1}. {f}" for i, f in enumerate(clean_cycle)])
+            chain += f"\n  → back to {clean_cycle[0]}"
             bugs.append({
                 'type': 'circular_dependency',
                 'severity': 'HIGH',
-                'files': cycle,
-                'message': f"Circular dependency detected: {' → '.join(cycle)} → {cycle[0]}",
+                'files': clean_cycle,
+                'message': f"Circular dependency ({len(cycle)} files):\n  {chain}",
                 'fix': 'Extract shared logic into a separate file that both can import from.'
             })
     except Exception as e:
         print(f"Cycle detection error: {e}")
 
     return bugs
-
-
 def detect_unused_imports(brain):
     # compare imports list against function/class names used in file
     bugs = []
@@ -179,16 +191,14 @@ def detect_security_antipatterns(brain):
     return bugs
 
 
-def run_all_detectors(brain=None, G=None):
+def run_all_detectors(brain=None, G=None, temp_path=None):
     if not brain:
         brain = load_brain()
     if not brain:
         return []
 
     bugs = []
-    bugs.extend(detect_circular_dependencies(brain))
-    # TODO: Week 4 - LLM bug detection needs function bodies for accuracy
-    # bugs.extend(detect_bugs_with_llm(brain, G))
+    bugs.extend(detect_circular_dependencies(brain, temp_path))
     bugs.extend(detect_security_antipatterns(brain))
 
     return bugs

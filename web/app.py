@@ -1,38 +1,50 @@
 from flask import Flask, request, jsonify, render_template
 import os
-import subprocess
 import shutil
 import stat
 import sys
+import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from brain_parser.codebase_walker import walk_codebase, save_brain
-from brain_parser.graph_builder import build_graph, calculate_risk
+from brain_parser.codebase_walker import walk_codebase, save_brain, summarize_high_risk_files, load_brain
+from brain_parser.graph_builder import build_graph, calculate_risk, get_impact
 from brain_parser.bug_detector import run_all_detectors
-from brain_parser.codebase_walker import walk_codebase, save_brain, summarize_high_risk_files
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
+
 def clean_path(filepath, temp_path):
-    # strip temp folder prefix → show relative path only
     clean = filepath.replace('\\', '/')
     temp = temp_path.replace('\\', '/')
     if temp in clean:
         clean = clean.split(temp)[-1].lstrip('/')
     return clean
 
+
 def force_delete(path):
-    # force delete on Windows — handles read-only git files
+    if not os.path.exists(path):
+        return
     def handle_error(func, path, exc):
-        os.chmod(path, stat.S_IWRITE)
-        func(path)
-    if os.path.exists(path):
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+        except Exception:
+            pass
+    try:
         shutil.rmtree(path, onerror=handle_error)
+    except Exception as e:
+        print(f"Warning: Could not delete {path}: {e}")
+
+
+def get_brain_path():
+    return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'brain.json')
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -48,10 +60,8 @@ def analyze():
     repo_name = github_url.split('/')[-1].replace('.git', '')
     temp_path = os.path.join(os.path.dirname(__file__), 'temp', repo_name)
 
-    # clean up old clone
     force_delete(temp_path)
 
-    # clone repo
     try:
         result = subprocess.run(
             ['git', 'clone', '--depth=1', github_url, temp_path],
@@ -64,30 +74,26 @@ def analyze():
     except Exception as e:
         return jsonify({'error': f'Clone error: {str(e)}'}), 500
 
-    # analyze
     try:
         brain = walk_codebase(temp_path)
-        brain_json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'brain.json')
         G = build_graph(brain)
-        risk = calculate_risk(G)  # ← move this up
+        risk = calculate_risk(G)
         brain = summarize_high_risk_files(brain, risk)
-        bugs = run_all_detectors(brain, G)
-        save_brain(brain, brain_json_path)
-        # clean bug file paths
+        bugs = run_all_detectors(brain, G, temp_path=temp_path)
+        save_brain(brain, get_brain_path())
+
         for bug in bugs:
             if 'file' in bug:
                 clean = clean_path(bug['file'], temp_path)
                 bug['file'] = clean
                 if 'message' in bug:
-                    # rebuild message with clean path
-                    bug['message'] = bug['message'].split(': ', 1)
-                    if len(bug['message']) > 1:
-                        bug['message'] = f"Security risk in {clean}: {bug['message'][1]}"
+                    parts = bug['message'].split(': ', 1)
+                    if len(parts) > 1:
+                        bug['message'] = f"Security risk in {clean}: {parts[1]}"
                     else:
-                        bug['message'] = bug['message'][0]
+                        bug['message'] = parts[0]
             if 'files' in bug:
                 bug['files'] = [clean_path(f, temp_path) for f in bug['files']]
-        risk = calculate_risk(G)
 
         files = []
         for filepath, fdata in brain.items():
@@ -106,10 +112,12 @@ def analyze():
             'files': files,
             'bugs': bugs
         })
+
     except Exception as e:
         return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
     finally:
         force_delete(temp_path)
+
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -129,31 +137,47 @@ def impact():
     if not filename:
         return jsonify({'error': 'No filename provided'}), 400
 
-    from brain_parser.graph_builder import get_impact, calculate_risk
-    from brain_parser.codebase_walker import load_brain
-
-    brain = load_brain()
+    brain = load_brain(get_brain_path())
     if not brain:
         return jsonify({'error': 'No brain found. Analyze a repo first.'}), 400
 
     G = build_graph(brain)
     risk = calculate_risk(G)
-    result = get_impact(G, filename)
 
+    matched = None
+    filename_norm = filename.replace('\\', '/').lower()
+    for key in G.nodes():
+        key_norm = key.replace('\\', '/').lower()
+        if key_norm.endswith(filename_norm):
+            matched = key
+            break
+
+    if not matched:
+        return jsonify({'error': f'File not found: {filename}'}), 404
+
+    result = get_impact(G, matched)
     if not result:
         return jsonify({'error': f'File not found: {filename}'}), 404
 
     def clean(path):
-        return path.replace('\\', '/').split('/')[-2] + '/' + path.replace('\\', '/').split('/')[
-            -1] if '/' in path.replace('\\', '/') else path
+        p = path.replace('\\', '/')
+        idx = p.find('/temp/')
+        if idx != -1:
+            after_temp = p[idx + 6:]
+            parts = after_temp.split('/', 1)
+            if len(parts) > 1:
+                return parts[1]
+            return parts[0]
+        return p
 
     return jsonify({
-        'target': clean(result['target']),
+        'target': clean(matched),
+        'risk': risk.get(matched, 'LOW'),
         'direct': [clean(f) for f in result['direct']],
         'indirect': [clean(f) for f in result['indirect']],
-        'total_affected': result['total_affected'],
-        'risk': risk.get(result['target'], 'LOW')
+        'total_affected': result['total_affected']
     })
+
 
 if __name__ == '__main__':
     os.makedirs(os.path.join(os.path.dirname(__file__), 'temp'), exist_ok=True)
