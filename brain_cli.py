@@ -3,6 +3,9 @@ import os
 import threading
 import subprocess
 import stat
+import argparse
+import os
+import sys
 from brain_parser.codebase_walker import walk_codebase, save_brain
 from brain_parser.file_watcher import start_watching
 from brain_parser.graph_builder import build_graph, visualize_interactive
@@ -54,7 +57,7 @@ def cmd_start(path):
         print(f"\nBrain: {answer}\n")
 
 
-def cmd_impact(filepath=None, staged=False):
+def cmd_impact(filepath=None, staged=False, block=False):
     from brain_parser.codebase_walker import load_brain
     from brain_parser.graph_builder import build_graph, get_impact, calculate_risk
 
@@ -82,9 +85,31 @@ def cmd_impact(filepath=None, staged=False):
             return
 
         print(f"\n Staged files: {', '.join(staged_files)}\n")
+
+        high_risk_found = False
         for f in staged_files:
             print(f"{'='*50}")
-            _print_impact(G, risk, f, clean)
+            result_data = _print_impact(G, risk, f, clean)
+            if result_data and result_data.get('risk') == 'HIGH':
+                high_risk_found = True
+
+        if block and high_risk_found:
+            print("\n" + "="*50)
+            print("BRAIN WARNING: HIGH RISK commit detected.")
+            print("This change affects critical files.")
+            print("Production incidents have originated from files like these.")
+            print("\nType 'yes' to commit anyway, anything else to abort: ", end="")
+            try:
+                confirm = input().strip().lower()
+            except EOFError:
+                # non-interactive shell (CI/CD) — allow through
+                confirm = 'yes'
+            if confirm != 'yes':
+                print("\nCommit blocked by Codebase Brain.")
+                print("Fix the high risk issues or type 'yes' to override.")
+                sys.exit(1)
+            else:
+                print("Override confirmed. Committing anyway.")
         return
 
     if not filepath:
@@ -100,10 +125,12 @@ def _print_impact(G, risk, filepath, clean):
 
     if not result:
         print(f"File not found in brain: {filepath}")
-        return
+        return None
+
+    file_risk = risk.get(result['target'], 'LOW')
 
     print(f"\n Change Impact: {filepath}")
-    print(f"   Risk Level: {risk.get(result['target'], 'LOW')}\n")
+    print(f"   Risk Level: {file_risk}\n")
     print(f"DIRECT IMPACT ({len(result['direct'])} files):")
     for f in result['direct']:
         print(f"  → {clean(f)}")
@@ -111,6 +138,8 @@ def _print_impact(G, risk, filepath, clean):
     for f in result['indirect']:
         print(f"  → {clean(f)}")
     print(f"\nTotal files affected: {result['total_affected']}\n")
+
+    return {'risk': file_risk, 'total': result['total_affected']}
 
 def install_hook(repo_path="."):
     hook_dir = os.path.join(repo_path, ".git", "hooks")
@@ -121,25 +150,28 @@ def install_hook(repo_path="."):
         return
 
     hook_script = """#!/bin/sh
-# Codebase Brain — Pre-commit Impact Check
-# https://github.com/guruvarpatel-ai/codebase-brain
+    # Codebase Brain — Pre-commit Impact Check
+    # https://github.com/guruvarpatel-ai/codebase-brain
 
-STAGED=$(git diff --name-only --cached)
+    STAGED=$(git diff --name-only --cached)
 
-if [ -z "$STAGED" ]; then
-  exit 0
-fi
+    if [ -z "$STAGED" ]; then
+      exit 0
+    fi
 
-echo ""
-echo "Codebase Brain — Checking blast radius..."
-echo ""
+    echo ""
+    echo "Codebase Brain — Checking blast radius..."
+    echo ""
 
-brain impact --staged
+    brain impact --staged --block
+    EXIT_CODE=$?
 
-echo ""
-echo "Powered by Codebase Brain"
-echo ""
-"""
+    echo ""
+    echo "Powered by Codebase Brain"
+    echo ""
+
+    exit $EXIT_CODE
+    """
 
     with open(hook_path, "w", newline='\n') as f:  # newline='\n' fixes Windows CRLF
         f.write(hook_script)
@@ -188,6 +220,7 @@ def main():
     parser.add_argument("--staged", action="store_true", help="Analyze all staged files")
     parser.add_argument("command", choices=["start", "init", "impact", "install-hook", "rootcause"])
     parser.add_argument("--error", default="", help="Stacktrace to analyze")
+    parser.add_argument("--block", action="store_true", help="Block HIGH risk commits")
     # ← new
     args = parser.parse_args()
 
@@ -199,7 +232,7 @@ def main():
     elif args.command == "start":
         cmd_start(args.path)
     elif args.command == "impact":
-        cmd_impact(filepath=args.file or None, staged=args.staged)
+        cmd_impact(filepath=args.file or None, staged=args.staged, block=args.block)
     elif args.command == "install-hook":
         install_hook()
 
