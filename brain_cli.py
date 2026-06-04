@@ -100,14 +100,20 @@ def cmd_impact(filepath=None, staged=False, block=False):
             print("Production incidents have originated from files like these.")
             print("\nType 'yes' to commit anyway, anything else to abort: ", end='', flush=True)
             try:
-                # force read from terminal directly, not stdin pipe
-                with open('/dev/tty', 'r') as tty:
-                    confirm = tty.readline().strip().lower()
+                # Windows: CON is the console device
+                # Unix: /dev/tty is the terminal
+                import platform
+                if platform.system() == 'Windows':
+                    with open('CON', 'r') as tty:
+                        confirm = tty.readline().strip().lower()
+                else:
+                    with open('/dev/tty', 'r') as tty:
+                        confirm = tty.readline().strip().lower()
             except:
                 try:
                     confirm = input().strip().lower()
                 except EOFError:
-                    confirm = 'yes'  # CI/CD — allow through
+                    confirm = 'yes'
             if confirm != 'yes':
                 print("\nCommit blocked by Codebase Brain.")
                 sys.exit(1)
