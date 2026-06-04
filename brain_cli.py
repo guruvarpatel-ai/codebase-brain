@@ -94,19 +94,22 @@ def cmd_impact(filepath=None, staged=False, block=False):
                 high_risk_found = True
 
         if block and high_risk_found:
-            print("\n" + "="*50)
+            print("\n" + "=" * 50)
             print("BRAIN WARNING: HIGH RISK commit detected.")
             print("This change affects critical files.")
             print("Production incidents have originated from files like these.")
-            print("\nType 'yes' to commit anyway, anything else to abort: ", end="")
+            print("\nType 'yes' to commit anyway, anything else to abort: ", end='', flush=True)
             try:
-                confirm = input().strip().lower()
-            except EOFError:
-                # non-interactive shell (CI/CD) — allow through
-                confirm = 'yes'
+                # force read from terminal directly, not stdin pipe
+                with open('/dev/tty', 'r') as tty:
+                    confirm = tty.readline().strip().lower()
+            except:
+                try:
+                    confirm = input().strip().lower()
+                except EOFError:
+                    confirm = 'yes'  # CI/CD — allow through
             if confirm != 'yes':
                 print("\nCommit blocked by Codebase Brain.")
-                print("Fix the high risk issues or type 'yes' to override.")
                 sys.exit(1)
             else:
                 print("Override confirmed. Committing anyway.")
