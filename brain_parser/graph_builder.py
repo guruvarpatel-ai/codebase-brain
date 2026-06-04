@@ -188,4 +188,4 @@ if __name__ == "__main__":
     for node, level in calculate_risk(G).items():
         print(f"  {node.split(chr(92))[-1]}: {level}")
 
-# test block
+# week 9 blocking hook test
