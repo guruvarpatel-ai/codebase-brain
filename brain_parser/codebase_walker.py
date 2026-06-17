@@ -3,13 +3,19 @@ import json
 from brain_parser.universal_parser import parse_file
 
 SKIP_FOLDERS = {
-    'flask', 'lib', '.idea', '__pycache__',
+    'lib', '.idea', '__pycache__',
     'codebase_brain.egg-info', 'node_modules',
     '.git', 'venv', '.env', 'tests', 'temp'
 }
 SKIP_FILES = {
     'brain.json', 'brain_map.html'
 }
+def should_skip(path):
+    parts = path.replace('\\', '/').split('/')
+    for part in parts:
+        if part in SKIP_FOLDERS:
+            return True
+    return False
 def walk_codebase(root_path):
     # load existing brain to check hashes
     existing_brain = load_brain() or {}

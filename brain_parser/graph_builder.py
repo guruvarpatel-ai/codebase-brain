@@ -141,7 +141,6 @@ def visualize_interactive(G):
       }
     }
     """)
-
     net.save_graph("brain_map.html")
     print(f"Nodes in graph: {len(G.nodes())}")
     print(f"Edges in graph: {len(G.edges())}")
@@ -156,9 +155,11 @@ def get_impact(G, filepath):
 
     # Normalize incoming path
     target_norm = os.path.abspath(filepath).replace('\\', '/')
+    target_rel = filepath.replace('\\', '/').lstrip('./')
 
     # Find matching node — handles both absolute and relative keys
     matched = None
+
     for node in G.nodes():
         node_norm = os.path.abspath(node).replace('\\', '/')
         if node_norm == target_norm:

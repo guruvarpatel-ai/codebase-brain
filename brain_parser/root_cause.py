@@ -97,10 +97,10 @@ def find_root_cause(stacktrace):
     if not results:
         return {"error": "Files in stacktrace not found in brain. Run 'brain start' to rebuild."}
 
-    return _format_result(results, risk)
+    return _format_result(results, risk, stacktrace)
 
 
-def _format_result(results, risk):
+def _format_result(results, risk,stacktrace=""):
     lines = []
     lines.append("ROOT CAUSE ANALYSIS")
     lines.append("=" * 50)
@@ -125,46 +125,38 @@ def _format_result(results, risk):
     lines.append("\n" + "=" * 50)
     lines.append("BRAIN DIAGNOSIS")
     lines.append("=" * 50)
-    lines.append(_ask_groq_diagnosis(results, risk))
+    lines.append(_ask_groq_diagnosis(results, risk, stacktrace))
 
     return "\n".join(lines)
 
 
-def _ask_groq_diagnosis(results, risk):
-    try:
-        from groq import Groq
-        from dotenv import load_dotenv
-        load_dotenv()
-        import os
+def _ask_groq_diagnosis(results, risk, stacktrace=""):
+    from brain_parser.llm_router import call_llm
 
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    context = ""
+    for r in results:
+        context += f"\nFile: {r['file']} (line {r['line']}, risk: {r['risk']})\n"
+        if r['nearby_functions']:
+            context += f"Functions: {[f['name'] for f in r['nearby_functions']]}\n"
+        if r['direct_causes']:
+            context += f"Fed by: {r['direct_causes']}\n"
 
-        context = ""
-        for r in results:
-            context += f"\nFile: {r['file']} (line {r['line']}, risk: {r['risk']})\n"
-            if r['nearby_functions']:
-                context += f"Functions: {[f['name'] for f in r['nearby_functions']]}\n"
-            if r['direct_causes']:
-                context += f"Fed by: {r['direct_causes']}\n"
+    prompt = f"""You are a senior developer doing root cause analysis.
 
-        prompt = f"""You are a senior developer doing root cause analysis.
-Given this dependency chain from a production error:
+Original error:
+{stacktrace}
+
+Dependency chain:
 {context}
 
 In 3 sentences max:
-1. Which file is most likely the root cause and why
-2. What the developer should check first
-3. What likely went wrong
+1. Which file is the root cause and exactly why based on the error message
+2. What the developer should check first — name the specific function
+3. What likely went wrong — be specific about the error type
 
-Be specific. Name the files and functions."""
+Name files and functions. No generic answers."""
 
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
-            temperature=0
-        )
-        return response.choices[0].message.content
-
+    try:
+        return call_llm(prompt, max_tokens=200)
     except Exception as e:
         return f"Could not get AI diagnosis: {str(e)}"

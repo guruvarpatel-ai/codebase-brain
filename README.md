@@ -1,5 +1,4 @@
 # Codebase Brain
-
 > An AI brain that lives inside your codebase. Finds bugs before they happen. Explains everything in plain English.
 
 ## What is this?
