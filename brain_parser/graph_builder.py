@@ -82,71 +82,185 @@ def calculate_risk(G):
     return risk
 
 def visualize_interactive(G):
-    risk = calculate_risk(G)\
+    from pyvis.network import Network
+    import os
 
-    color_map = {
-        "HIGH": "#ff4444",
-        "MEDIUM": "#ffa500",
-        "LOW": "#44cc44"
-    }
+    risk = calculate_risk(G)
 
     net = Network(
-        height="750px",
+        height="100vh",
         width="100%",
-        bgcolor="#1a1a2e",
-        font_color="white",
-        directed=True
+        bgcolor="#0d0d0d",
+        font_color="#ffffff",
+        directed=True,
+        cdn_resources='in_line'
     )
 
+    color_map = {
+        "HIGH": "#ff3860",
+        "MEDIUM": "#ffdd57",
+        "LOW": "#23d160"
+    }
+
+    # build node map first — ensures consistent keys for edges
+    node_map = {}
     for node in G.nodes():
-        risk_level = risk[node]
+        node_map[node] = str(node)
+
+    for node, node_id in node_map.items():
+        risk_level = risk.get(node, 'LOW')
         color = color_map[risk_level]
-        label = node.split("\\")[-1].split("/")[-1]
+        label = node.replace('\\', '/').split('/')[-1]
+        size = 18 + (G.in_degree(node) * 5)
 
         net.add_node(
-            node,
+            node_id,
             label=label,
-            color=color,
-            size=20 + (G.in_degree(node) * 3),
-            title=f"File: {label}\nRisk: {risk_level}\nConnections: {G.in_degree(node)}"
+            color={
+                'background': color,
+                'border': color,
+                'highlight': {'background': '#ffffff', 'border': color}
+            },
+            size=size,
+            font={'size': 14, 'color': '#ffffff', 'face': 'monospace'},
+            borderWidth=2,
+            shadow=True,
+             title=f"File: {label}\nRisk: {risk_level}\nConnections: {G.in_degree(node)}"
         )
 
     for edge in G.edges():
-        net.add_edge(edge[0], edge[1])
+        src = node_map.get(edge[0], str(edge[0]))
+        dst = node_map.get(edge[1], str(edge[1]))
+        if src in net.get_nodes() and dst in net.get_nodes():
+            net.add_edge(
+                src, dst,
+                color={'color': '#ffffff33'},
+                width=1.5,
+                arrows={'to': {'enabled': True, 'scaleFactor': 0.6}}
+            )
 
     net.set_options("""
     {
       "nodes": {
         "borderWidth": 2,
-        "shadow": true
+        "shadow": {
+          "enabled": true,
+          "color": "rgba(0,0,0,0.8)",
+          "size": 15,
+          "x": 0,
+          "y": 0
+        }
       },
       "edges": {
         "smooth": {
-          "type": "dynamic"
+          "type": "curvedCW",
+          "roundness": 0.2
         },
-        "shadow": true
+        "shadow": false
       },
       "interaction": {
         "hover": true,
-        "navigationButtons": true,
-        "hideEdgesOnDrag": true
+        "navigationButtons": false,
+        "hideEdgesOnDrag": true,
+        "tooltipDelay": 100
       },
       "physics": {
-        "stabilization": true,
+        "stabilization": {
+          "enabled": true,
+          "iterations": 200
+        },
         "barnesHut": {
-          "gravitationalConstant": -8000,
-          "springLength": 200,
-          "springConstant": 0.02
+          "gravitationalConstant": -12000,
+          "centralGravity": 0.1,
+          "springLength": 250,
+          "springConstant": 0.02,
+          "damping": 0.09
         }
       }
     }
     """)
-    net.save_graph("brain_map.html")
+
+    output_path = os.path.join(os.getcwd(), 'brain_map.html')
+
+    html_content = net.generate_html()
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+
+    with open(output_path, 'r', encoding='utf-8') as f:
+        html = f.read()
+
+    custom_style = """
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d0d0d; font-family: 'Courier New', monospace; }
+#mynetwork {
+    background: radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d0d 100%);
+    border: none !important;
+}
+.legend {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: rgba(13,13,13,0.9);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 16px 20px;
+    color: #fff;
+    font-family: monospace;
+    font-size: 13px;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+}
+.legend-title {
+    color: #888;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+.legend-item { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+.high { background: #ff3860; color: #ff3860; }
+.medium { background: #ffdd57; color: #ffdd57; }
+.low { background: #23d160; color: #23d160; }
+.brain-title {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    color: #444;
+    font-family: monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    z-index: 1000;
+}
+div.vis-tooltip {
+    background: #1a1a2e !important;
+    border: 1px solid #ff3860 !important;
+    border-radius: 8px !important;
+    color: #fff !important;
+    font-family: monospace !important;
+    font-size: 12px !important;
+    padding: 10px 14px !important;
+}
+</style>
+<div class="legend">
+    <div class="legend-title">Risk Level</div>
+    <div class="legend-item"><div class="dot high"></div><span>High Risk</span></div>
+    <div class="legend-item"><div class="dot medium"></div><span>Medium Risk</span></div>
+    <div class="legend-item"><div class="dot low"></div><span>Low Risk</span></div>
+</div>
+<div class="brain-title">Codebase Brain</div>
+"""
+
+    html = html.replace('<body>', '<body>' + custom_style)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(html)
+
     print(f"Nodes in graph: {len(G.nodes())}")
     print(f"Edges in graph: {len(G.edges())}")
-    import webbrowser
-    webbrowser.open("brain_map.html")
-    print("Interactive graph saved to brain_map.html")
+    print(f"Graph saved to {output_path}")
 
 
 def get_impact(G, filepath):

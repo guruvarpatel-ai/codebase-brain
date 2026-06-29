@@ -9,32 +9,33 @@ def detect_circular_dependencies(brain, temp_path=None):
     G = build_graph(brain)
     bugs = []
 
-    def clean(path):
+    def rel(path):
         p = path.replace('\\', '/')
         idx = p.find('/temp/')
         if idx != -1:
             after_temp = p[idx + 6:]
             parts = after_temp.split('/', 1)
-            if len(parts) > 1:
-                return parts[1]
-            return parts[0]
-        # fallback — just filename
-        return p.split('/')[-1]
+            p = parts[1] if len(parts) > 1 else parts[0]
+        if '/src/' in p:
+            p = p[p.find('/src/') + 1:]
+        elif p.startswith('./'):
+            p = p[2:]
+        return p
 
     try:
-        cycles = list(nx.simple_cycles(G))
-        for cycle in cycles:
-            clean_cycle = [clean(f) for f in cycle]
-            # format as numbered list not one long line
-            chain = '\n  '.join([f"{i+1}. {f}" for i, f in enumerate(clean_cycle)])
-            chain += f"\n  → back to {clean_cycle[0]}"
+        sccs = [scc for scc in nx.strongly_connected_components(G) if len(scc) > 1]
+
+        for scc in sccs:
+            clean_files = sorted(list(set([rel(f).split('/')[-1] for f in scc])))
+            chain = '\n  '.join([f"{i+1}. {f}" for i, f in enumerate(clean_files)])
             bugs.append({
                 'type': 'circular_dependency',
                 'severity': 'HIGH',
-                'files': clean_cycle,
-                'message': f"Circular dependency ({len(cycle)} files):\n  {chain}",
+                'files': clean_files,
+                'message': f"Circular dependency group ({len(clean_files)} files):\n  {chain}",
                 'fix': 'Extract shared logic into a separate file that both can import from.'
             })
+
     except Exception as e:
         print(f"Cycle detection error: {e}")
 

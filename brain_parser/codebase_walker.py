@@ -53,18 +53,23 @@ def walk_codebase(root_path):
 
     return brain
 
-BRAIN_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'brain.json')
+def get_brain_path():
+    """Always returns brain.json in the current working directory."""
+    return os.path.join(os.getcwd(), 'brain.json')
 
-def save_brain(brain, output_path=BRAIN_PATH):
+def save_brain(brain, output_path=None):
+    if output_path is None:
+        output_path = get_brain_path()
     with open(output_path, "w") as f:
         json.dump(brain, f, indent=4)
     print(f"Brain saved to {output_path}")
 
-def load_brain(input_path=BRAIN_PATH):
-    if not os.path.exists(input_path):
-        print("No brain found. Run walker first.")
+def load_brain(output_path=None):
+    if output_path is None:
+        output_path = get_brain_path()
+    if not os.path.exists(output_path):
         return None
-    with open(input_path, "r") as f:
+    with open(output_path, 'r') as f:
         return json.load(f)
 
 
