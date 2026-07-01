@@ -200,7 +200,14 @@ def install_hook(repo_path="."):
 
 
 def cmd_init():
+    import os
     print("Initializing Codebase Brain...\n")
+
+    # global config — stored once per machine
+    config_dir = os.path.expanduser("~/.codebase-brain")
+    os.makedirs(config_dir, exist_ok=True)
+    config_path = os.path.join(config_dir, "config.env")
+
     print("Choose your LLM provider:")
     print("  1. Groq        — Free, fast. llama-3.3-70b (recommended to start)")
     print("  2. OpenAI      — Reliable, trusted by enterprises. gpt-4o-mini")
@@ -237,7 +244,7 @@ def cmd_init():
         },
         "5": {
             "name": "ollama",
-            "key_prompt": None,  # no key needed
+            "key_prompt": None,
             "models": ["llama3.2", "codellama", "deepseek-coder"],
             "default_model": "llama3.2"
         }
@@ -248,14 +255,12 @@ def cmd_init():
 
     provider = providers[choice]
 
-    # get API key
     if provider["key_prompt"]:
         api_key = input(provider["key_prompt"]).strip()
     else:
         api_key = "ollama"
         print("Ollama selected — make sure Ollama is running at http://localhost:11434")
 
-    # pick model
     print(f"\nAvailable models for {provider['name']}:")
     for i, m in enumerate(provider["models"], 1):
         default_tag = " (default)" if m == provider["default_model"] else ""
@@ -271,16 +276,16 @@ def cmd_init():
     else:
         model = provider["default_model"]
 
-    with open(".env", "w") as f:
+    # save globally — one time setup
+    with open(config_path, "w") as f:
         f.write(f"LLM_PROVIDER={provider['name']}\n")
         f.write(f"LLM_API_KEY={api_key}\n")
         f.write(f"LLM_MODEL={model}\n")
-        # backwards compatibility
         f.write(f"GROQ_API_KEY={api_key}\n")
         f.write(f"GROQ_MODEL={model}\n")
 
-    print(f"\nBrain initialized with {provider['name']} — {model}")
-    print("Run 'brain start' to begin.\n")
+    print(f"\nBrain initialized globally — {provider['name']} / {model}")
+    print("Run 'brain start' in any project to begin.\n")
 
 def cmd_rootcause(error_text=None):
     from brain_parser.root_cause import find_root_cause
@@ -297,6 +302,41 @@ def cmd_rootcause(error_text=None):
         error_text = "\n".join(lines)
 
     print(find_root_cause(error_text))
+def cmd_uninstall():
+    import shutil
+
+    print("Uninstalling Codebase Brain...\n")
+
+    # remove global config
+    config_dir = os.path.expanduser("~/.codebase-brain")
+    if os.path.exists(config_dir):
+        shutil.rmtree(config_dir)
+        print("Removed global config.")
+
+    # remove local brain.json
+    brain_json = os.path.join(os.getcwd(), 'brain.json')
+    if os.path.exists(brain_json):
+        os.remove(brain_json)
+        print("Removed brain.json.")
+
+    # remove local brain_map.html
+    brain_map = os.path.join(os.getcwd(), 'brain_map.html')
+    if os.path.exists(brain_map):
+        os.remove(brain_map)
+        print("Removed brain_map.html.")
+
+    # remove git hook
+    hook_path = os.path.join(os.getcwd(), '.git', 'hooks', 'pre-commit')
+    if os.path.exists(hook_path):
+        # only remove if it's a Brain hook
+        with open(hook_path, 'r') as f:
+            content = f.read()
+        if 'Codebase Brain' in content:
+            os.remove(hook_path)
+            print("Removed git hook.")
+
+    print("\nBrain removed from this project.")
+    print("To fully uninstall: pip uninstall codebase-brain")
 
 
 def main():
@@ -307,9 +347,10 @@ def main():
     parser.add_argument("--path", default=".", help="Path to codebase")
     parser.add_argument("--file", default="", help="File to analyze impact")
     parser.add_argument("--staged", action="store_true", help="Analyze all staged files")
-    parser.add_argument("command", choices=["start", "init", "impact", "install-hook", "rootcause"])
+    parser.add_argument("command", choices=["start", "init", "impact", "install-hook", "rootcause", "uninstall"])
     parser.add_argument("--error", default="", help="Stacktrace to analyze")
     parser.add_argument("--block", action="store_true", help="Block HIGH risk commits")
+ 
     # ← new
     args = parser.parse_args()
 
@@ -324,8 +365,12 @@ def main():
         cmd_impact(filepath=args.file or None, staged=args.staged, block=args.block)
     elif args.command == "install-hook":
         install_hook()
+    elif args.command == "uninstall":
+        cmd_uninstall()
+
 
 
 
 if __name__ == "__main__":
     main()
+   
