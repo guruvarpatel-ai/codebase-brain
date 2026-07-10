@@ -65,6 +65,75 @@ def cmd_start(path):
         print(f"\nBrain: {answer}\n")
 
 
+def _explain_risk(staged_files, G, risk, brain):
+    from brain_parser.llm_router import call_llm
+
+    context = ""
+    for f in staged_files:
+        target_norm = os.path.abspath(f).replace('\\', '/')
+        matched = None
+        for node in G.nodes():
+            node_norm = os.path.abspath(node).replace('\\', '/')
+            if node_norm == target_norm:
+                matched = node
+                break
+        if not matched:
+            continue
+
+        file_risk = risk.get(matched, 'LOW')
+        if file_risk != 'HIGH':
+            continue
+
+        direct = list(G.predecessors(matched))
+        file_data = brain.get(matched, {})
+        functions = [fn['name'] for fn in file_data.get('functions', [])]
+
+        context += f"\nFile: {f}\n"
+        context += f"Risk: {file_risk}\n"
+        context += f"Functions in this file: {functions}\n"
+        context += f"Files that depend on it: {direct}\n"
+
+    prompt = f"""A developer is about to commit changes to a HIGH risk file.
+Given this context:
+{context}
+
+In 2-3 sentences, explain in plain English:
+1. Why this file is risky to change
+2. What could realistically break if the change is wrong
+3. What the developer should double check before committing
+
+Be direct and specific. No generic advice."""
+
+    try:
+        return call_llm(prompt, max_tokens=200)
+    except Exception as e:
+        return f"Could not generate explanation: {str(e)}"
+
+
+def _print_impact(G, risk, filepath, clean):
+    from brain_parser.graph_builder import get_impact
+
+    result = get_impact(G, filepath)
+
+    if not result:
+        print(f"File not found in brain: {filepath}")
+        return None
+
+    file_risk = risk.get(result['target'], 'LOW')
+
+    print(f"\n Change Impact: {filepath}")
+    print(f"   Risk Level: {file_risk}\n")
+    print(f"DIRECT IMPACT ({len(result['direct'])} files):")
+    for f in result['direct']:
+        print(f"  → {clean(f)}")
+    print(f"\nINDIRECT IMPACT ({len(result['indirect'])} files):")
+    for f in result['indirect']:
+        print(f"  → {clean(f)}")
+    print(f"\nTotal files affected: {result['total_affected']}\n")
+
+    return {'risk': file_risk, 'total': result['total_affected']}
+
+
 def cmd_impact(filepath=None, staged=False, block=False):
     from brain_parser.codebase_walker import load_brain
     from brain_parser.graph_builder import build_graph, get_impact, calculate_risk
@@ -106,10 +175,13 @@ def cmd_impact(filepath=None, staged=False, block=False):
             print("BRAIN WARNING: HIGH RISK commit detected.")
             print("This change affects critical files.")
             print("Production incidents have originated from files like these.")
+
+            print("\nAsking Brain to explain the risk...\n")
+            explanation = _explain_risk(staged_files, G, risk, brain)
+            print(explanation)
+
             print("\nType 'yes' to commit anyway, anything else to abort: ", end='', flush=True)
             try:
-                # Windows: CON is the console device
-                # Unix: /dev/tty is the terminal
                 import platform
                 if platform.system() == 'Windows':
                     with open('CON', 'r') as tty:
@@ -134,30 +206,6 @@ def cmd_impact(filepath=None, staged=False, block=False):
         return
 
     _print_impact(G, risk, filepath, clean)
-
-def _print_impact(G, risk, filepath, clean):
-    from brain_parser.graph_builder import get_impact
-
-    result = get_impact(G, filepath)
-
-    if not result:
-        print(f"File not found in brain: {filepath}")
-        return None
-
-    file_risk = risk.get(result['target'], 'LOW')
-
-    print(f"\n Change Impact: {filepath}")
-    print(f"   Risk Level: {file_risk}\n")
-    print(f"DIRECT IMPACT ({len(result['direct'])} files):")
-    for f in result['direct']:
-        print(f"  → {clean(f)}")
-    print(f"\nINDIRECT IMPACT ({len(result['indirect'])} files):")
-    for f in result['indirect']:
-        print(f"  → {clean(f)}")
-    print(f"\nTotal files affected: {result['total_affected']}\n")
-
-    return {'risk': file_risk, 'total': result['total_affected']}
-
 def install_hook(repo_path="."):
     hook_dir = os.path.join(repo_path, ".git", "hooks")
     hook_path = os.path.join(hook_dir, "pre-commit")

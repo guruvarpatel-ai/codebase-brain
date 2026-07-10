@@ -106,7 +106,7 @@ def visualize_interactive(G):
     node_map = {}
     for node in G.nodes():
         node_map[node] = str(node)
-
+# demo test
     for node, node_id in node_map.items():
         risk_level = risk.get(node, 'LOW')
         color = color_map[risk_level]
