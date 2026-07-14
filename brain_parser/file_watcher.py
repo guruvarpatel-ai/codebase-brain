@@ -4,14 +4,14 @@ from watchdog.events import FileSystemEventHandler
 from brain_parser.universal_parser import parse_file
 from brain_parser.codebase_walker import walk_codebase, save_brain, load_brain
 
-SKIP_WATCH = {'.git', '.idea', '__pycache__', 'node_modules', 'lib'}
+SKIP_WATCH = {'.git', '.idea', '__pycache__', 'node_modules', 'lib', 'venv', 'codebase_brain.egg-info', 'temp', '.env'}
+
 
 class BrainEventHandler(FileSystemEventHandler):
     def __init__(self):
         self.brain = load_brain() or {}
 
-
-    def should_skip(self,path):
+    def should_skip(self, path):
         # skip git, ide, temp files
         if path.endswith('~'):
             return True
@@ -25,7 +25,6 @@ class BrainEventHandler(FileSystemEventHandler):
             return
         if self.should_skip(event.src_path):
             return
-        # skip brain output files
 
         if event.src_path.endswith('brain.json') or event.src_path.endswith('brain_map.html'):
             return
