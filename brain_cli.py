@@ -206,6 +206,7 @@ def cmd_impact(filepath=None, staged=False, block=False):
         return
 
     _print_impact(G, risk, filepath, clean)
+
 def install_hook(repo_path="."):
     hook_dir = os.path.join(repo_path, ".git", "hooks")
     hook_path = os.path.join(hook_dir, "pre-commit")

@@ -1,13 +1,34 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+
+def get_config():
+    """Load from local .env first, then global ~/.codebase-brain/config.env"""
+    local_env = os.path.join(os.getcwd(), '.env')
+    if os.path.exists(local_env):
+        load_dotenv(local_env, override=True)
+
+    # check if local .env actually had Brain's keys
+    has_key = os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY")
+
+    if not has_key:
+        # local .env didn't have Brain's config — fall back to global
+        global_config = os.path.expanduser("~/.codebase-brain/config.env")
+        if os.path.exists(global_config):
+            load_dotenv(global_config, override=True)
+
+    return {
+        'provider': os.getenv("LLM_PROVIDER", "groq").lower(),
+        'api_key': os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY"),
+        'model': os.getenv("LLM_MODEL") or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    }
 
 
 def call_llm(prompt, max_tokens=500):
-    provider = os.getenv("LLM_PROVIDER", "groq").lower()
-    api_key = os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY")
-    model = os.getenv("LLM_MODEL") or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    config = get_config()
+    provider = config['provider']
+    api_key = config['api_key']
+    model = config['model']
 
     if provider == "groq":
         return _call_groq(api_key, model, prompt, max_tokens)
