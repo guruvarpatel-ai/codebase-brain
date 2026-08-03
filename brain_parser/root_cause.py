@@ -37,21 +37,47 @@ def extract_frames(stacktrace):
 
 
 def match_frame_to_graph(frame_file, G):
-    """Match a short filename from stacktrace to full path in graph."""
-    frame_norm = frame_file.replace('\\', '/')
-    candidates = []
+    """Match any path format from stacktrace to full path in graph — universal matching."""
 
+    def normalize(path):
+        p = path.replace('\\', '/').lower()
+        if len(p) > 1 and p[1] == ':':
+            p = p[2:]
+        return p.lstrip('/')
+
+    frame_norm = normalize(frame_file)
+    frame_parts = frame_norm.split('/')
+
+    candidates = []
     for node in G.nodes():
-        node_norm = node.replace('\\', '/')
-        # exact suffix match — auth/middleware.js matches ./src/auth/middleware.js
-        if node_norm.endswith(frame_norm):
+        node_norm = normalize(node)
+        node_parts = node_norm.split('/')
+
+        min_len = min(len(frame_parts), len(node_parts))
+        if min_len == 0:
+            continue
+
+        if frame_parts[-min_len:] == node_parts[-min_len:]:
+            candidates.append(node)
+            continue
+
+        if frame_parts[-1] == node_parts[-1]:
             candidates.append(node)
 
     if not candidates:
         return None
-    # prefer shortest path — most specific match
-    return min(candidates, key=len)
 
+    def match_score(node):
+        node_parts = normalize(node).split('/')
+        score = 0
+        for a, b in zip(reversed(frame_parts), reversed(node_parts)):
+            if a == b:
+                score += 1
+            else:
+                break
+        return score
+
+    return max(candidates, key=match_score)
 
 def find_root_cause(stacktrace):
     """Main function — paste stacktrace, get root cause analysis."""
